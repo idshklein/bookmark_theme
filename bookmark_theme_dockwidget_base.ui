@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>BookmarkThemeDockWidgetBase</class>
+ <widget class="QDockWidget" name="BookmarkThemeDockWidgetBase">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>380</width>
+    <height>560</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Bookmark Theme Selector</string>
+  </property>
+  <widget class="QWidget" name="dockWidgetContents">
+   <layout class="QVBoxLayout" name="verticalLayout">
+    <item>
+     <widget class="QLabel" name="pairsLabel">
+      <property name="text">
+       <string>Saved Pairs</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+        <widget class="QComboBox" name="savedPairComboBox"/>
+    </item>
+    <item>
+     <layout class="QHBoxLayout" name="pairButtonsLayout">
+      <item>
+       <widget class="QPushButton" name="applyPairButton">
+        <property name="text">
+         <string>Apply</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="removePairButton">
+        <property name="text">
+         <string>Remove</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </item>
+    <item>
+     <widget class="QFrame" name="line">
+      <property name="frameShape">
+       <enum>QFrame::HLine</enum>
+      </property>
+      <property name="frameShadow">
+       <enum>QFrame::Sunken</enum>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QLabel" name="newPairLabel">
+      <property name="text">
+       <string>New Pair</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QLineEdit" name="pairNameLineEdit">
+      <property name="placeholderText">
+       <string>Optional pair name</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QLabel" name="themeLabel">
+      <property name="text">
+       <string>Theme</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QComboBox" name="themeComboBox"/>
+    </item>
+    <item>
+     <widget class="QLabel" name="bookmarkLabel">
+      <property name="text">
+       <string>Bookmark</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QComboBox" name="bookmarkComboBox"/>
+    </item>
+    <item>
+     <layout class="QHBoxLayout" name="addRefreshLayout">
+      <item>
+       <widget class="QPushButton" name="addPairButton">
+        <property name="text">
+         <string>Add Pair</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="refreshButton">
+        <property name="text">
+         <string>Refresh</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </item>
+   </layout>
+  </widget>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
