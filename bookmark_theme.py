@@ -41,7 +41,9 @@ class BookmarkThemePlugin:
     def show_dock(self):
         if self.dockwidget is None:
             self.dockwidget = BookmarkThemeDockWidget(self.iface.mainWindow())
-            self.iface.addDockWidget(Qt.LeftDockWidgetArea, self.dockwidget)
+            self.iface.addDockWidget(
+                Qt.DockWidgetArea.LeftDockWidgetArea, self.dockwidget
+            )
             self._connect_signals()
             self._load_pairs()
             self.refresh_sources()
