@@ -1,8 +1,22 @@
 import json
+import math
 
-from qgis.core import QgsApplication, QgsProject, Qgis
+from qgis.core import (
+    QgsApplication,
+    QgsLayoutItemLabel,
+    QgsLayoutItemMap,
+    QgsLayoutPoint,
+    QgsLayoutSize,
+    QgsPrintLayout,
+    QgsProject,
+    QgsRectangle,
+    QgsReferencedRectangle,
+    QgsUnitTypes,
+    Qgis,
+)
 from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtGui import QAction
+from qgis.PyQt.QtWidgets import QDockWidget
 from .bookmark_theme_dockwidget import BookmarkThemeDockWidget
 
 
@@ -40,6 +54,7 @@ class BookmarkThemePlugin:
 
     def show_dock(self):
         if self.dockwidget is None:
+            self._remove_stale_docks()
             self.dockwidget = BookmarkThemeDockWidget(self.iface.mainWindow())
             self.iface.addDockWidget(
                 Qt.DockWidgetArea.LeftDockWidgetArea, self.dockwidget
@@ -52,10 +67,23 @@ class BookmarkThemePlugin:
         self.dockwidget.show()
         self.dockwidget.raise_()
 
+    def _remove_stale_docks(self):
+        main_window = self.iface.mainWindow()
+        for dock_widget in main_window.findChildren(QDockWidget):
+            if dock_widget is self.dockwidget:
+                continue
+            if dock_widget.objectName() != "BookmarkThemeDockWidgetBase":
+                continue
+            self.iface.removeDockWidget(dock_widget)
+            dock_widget.close()
+
     def _connect_signals(self):
         self.dockwidget.addPairButton.clicked.connect(self.add_pair)
         self.dockwidget.removePairButton.clicked.connect(self.remove_selected_pair)
         self.dockwidget.applyPairButton.clicked.connect(self.apply_selected_pair)
+        generate_button = getattr(self.dockwidget, "generateLayoutButton", None)
+        if generate_button is not None:
+            generate_button.clicked.connect(self.generate_layout_for_selection)
         self.dockwidget.refreshButton.clicked.connect(self.refresh_sources)
         self.dockwidget.themeComboBox.currentIndexChanged.connect(self._update_add_button_state)
         self.dockwidget.bookmarkComboBox.currentIndexChanged.connect(self._update_add_button_state)
@@ -84,6 +112,9 @@ class BookmarkThemePlugin:
             self.dockwidget.addPairButton.clicked.disconnect(self.add_pair)
             self.dockwidget.removePairButton.clicked.disconnect(self.remove_selected_pair)
             self.dockwidget.applyPairButton.clicked.disconnect(self.apply_selected_pair)
+            generate_button = getattr(self.dockwidget, "generateLayoutButton", None)
+            if generate_button is not None:
+                generate_button.clicked.disconnect(self.generate_layout_for_selection)
             self.dockwidget.refreshButton.clicked.disconnect(self.refresh_sources)
             self.dockwidget.themeComboBox.currentIndexChanged.disconnect(self._update_add_button_state)
             self.dockwidget.bookmarkComboBox.currentIndexChanged.disconnect(self._update_add_button_state)
@@ -175,6 +206,9 @@ class BookmarkThemePlugin:
 
         for pair in self._pairs:
             label = f"{pair['name']}  ·  {pair['theme_name']}  +  [{pair['bookmark_source']}] {pair['bookmark_name']}"
+            layout_group = pair.get("layout_group", "").strip()
+            if layout_group:
+                label = f"{label}  ·  Group: {layout_group}"
             self.dockwidget.savedPairComboBox.addItem(label, pair)
 
         if self._pairs:
@@ -202,12 +236,23 @@ class BookmarkThemePlugin:
         if not pair_name:
             pair_name = f"Theme: {theme_name} | Bookmark: {bookmark['name']}"
 
+        layout_group_line_edit = getattr(self.dockwidget, "layoutGroupLineEdit", None)
+        preserve_checkbox = getattr(self.dockwidget, "preserveAspectRatioCheckBox", None)
+
         pair = {
             "name": pair_name,
             "theme_name": theme_name,
             "bookmark_source": bookmark["source"],
             "bookmark_id": bookmark["id"],
             "bookmark_name": bookmark["name"],
+            "layout_group": (
+                layout_group_line_edit.text().strip()
+                if layout_group_line_edit is not None
+                else ""
+            ),
+            "preserve_aspect_ratio": (
+                preserve_checkbox.isChecked() if preserve_checkbox is not None else False
+            ),
         }
 
         self._pairs.append(pair)
@@ -215,6 +260,11 @@ class BookmarkThemePlugin:
         self.refresh_pair_list()
         self.dockwidget.savedPairComboBox.setCurrentIndex(len(self._pairs) - 1)
         self.dockwidget.pairNameLineEdit.clear()
+
+        if layout_group_line_edit is not None:
+            layout_group_line_edit.clear()
+        if preserve_checkbox is not None:
+            preserve_checkbox.setChecked(False)
 
         self._message(f"Saved pair '{pair_name}'.", Qgis.Info)
 
@@ -291,6 +341,11 @@ class BookmarkThemePlugin:
 
         map_canvas = self.iface.mapCanvas()
         extent = bookmark.extent()
+        if pair.get("preserve_aspect_ratio", False):
+            target_ratio = self._canvas_ratio(map_canvas)
+            adjusted_extent = self._fit_extent_to_ratio(extent, target_ratio)
+            extent = self._preserve_extent_reference(extent, adjusted_extent)
+
         if hasattr(map_canvas, "setReferencedExtent"):
             map_canvas.setReferencedExtent(extent)
         else:
@@ -299,6 +354,116 @@ class BookmarkThemePlugin:
         map_canvas.setRotation(bookmark.rotation())
         map_canvas.refresh()
         return True
+
+    def generate_layout_for_selection(self):
+        if self.dockwidget is None:
+            return
+
+        index = self.dockwidget.savedPairComboBox.currentIndex()
+        if index < 0 or index >= len(self._pairs):
+            self._message("Select a pair to generate a layout.", Qgis.Warning)
+            return
+
+        selected_pair = self._pairs[index]
+        group_name = str(selected_pair.get("layout_group") or "").strip()
+
+        selected_pairs = [selected_pair]
+        if group_name:
+            layout_name = f"Bookmark Theme - {group_name}"
+        else:
+            layout_name = f"Bookmark Theme - {selected_pair.get('name', 'Selection')}"
+
+        created, skipped = self._build_layout(layout_name, selected_pairs)
+        if created == 0:
+            self._message("No layout maps were generated. Check bookmark references.", Qgis.Warning)
+            return
+
+        if skipped:
+            self._message(
+                f"Generated layout '{layout_name}' with {created} item(s), skipped {skipped} missing bookmark(s).",
+                Qgis.Warning,
+            )
+            return
+
+        self._message(f"Generated layout '{layout_name}' with {created} item(s).", Qgis.Success)
+
+    def _build_layout(self, layout_name, pairs):
+        project = QgsProject.instance()
+        layout_manager = project.layoutManager()
+
+        existing = layout_manager.layoutByName(layout_name)
+        if existing is not None:
+            layout_manager.removeLayout(existing)
+
+        layout = QgsPrintLayout(project)
+        layout.initializeDefaults()
+        layout.setName(layout_name)
+        layout_manager.addLayout(layout)
+
+        page = layout.pageCollection().page(0)
+        page_size = page.pageSize()
+        page_width = page_size.width()
+        page_height = page_size.height()
+
+        margin = 12.0
+        gap = 6.0
+        count = len(pairs)
+        columns = 1 if count <= 1 else 2
+        rows = max(1, int(math.ceil(float(count) / float(columns))))
+
+        available_width = page_width - (2 * margin) - ((columns - 1) * gap)
+        available_height = page_height - (2 * margin) - ((rows - 1) * gap)
+        item_width = max(20.0, available_width / float(columns))
+        item_height = max(20.0, available_height / float(rows))
+        target_ratio = item_width / item_height if item_height else None
+
+        created = 0
+        skipped = 0
+
+        for index, pair in enumerate(pairs):
+            bookmark = self._resolve_bookmark(pair)
+            if bookmark is None:
+                skipped += 1
+                continue
+
+            row = int(index / columns)
+            column = index % columns
+            x_pos = margin + (column * (item_width + gap))
+            y_pos = margin + (row * (item_height + gap))
+
+            map_item = QgsLayoutItemMap(layout)
+            map_item.attemptMove(QgsLayoutPoint(x_pos, y_pos, QgsUnitTypes.LayoutMillimeters))
+            map_item.attemptResize(
+                QgsLayoutSize(item_width, item_height, QgsUnitTypes.LayoutMillimeters)
+            )
+
+            extent = bookmark.extent()
+            if pair.get("preserve_aspect_ratio", False):
+                extent = self._fit_extent_to_ratio(extent, target_ratio)
+            map_item.setExtent(extent)
+
+            if hasattr(map_item, "setMapRotation"):
+                map_item.setMapRotation(bookmark.rotation())
+
+            theme_name = str(pair.get("theme_name") or "")
+            if theme_name and hasattr(map_item, "setFollowVisibilityPreset"):
+                map_item.setFollowVisibilityPreset(True)
+                if hasattr(map_item, "setFollowVisibilityPresetName"):
+                    map_item.setFollowVisibilityPresetName(theme_name)
+
+            layout.addLayoutItem(map_item)
+
+            label_item = QgsLayoutItemLabel(layout)
+            label_item.setText(pair.get("name", "Unnamed Pair"))
+            label_item.adjustSizeToText()
+            label_item.attemptMove(
+                QgsLayoutPoint(x_pos, max(0.0, y_pos - 5.0), QgsUnitTypes.LayoutMillimeters)
+            )
+            layout.addLayoutItem(label_item)
+
+            created += 1
+
+        return created, skipped
 
     def _resolve_bookmark(self, pair):
         source = pair.get("bookmark_source")
@@ -383,6 +548,8 @@ class BookmarkThemePlugin:
                 "bookmark_source": str(pair.get("bookmark_source") or "project"),
                 "bookmark_id": str(pair.get("bookmark_id") or ""),
                 "bookmark_name": str(pair.get("bookmark_name") or ""),
+                "layout_group": str(pair.get("layout_group") or ""),
+                "preserve_aspect_ratio": bool(pair.get("preserve_aspect_ratio", False)),
             }
             self._pairs.append(normalized)
 
@@ -435,6 +602,46 @@ class BookmarkThemePlugin:
         has_theme = bool(theme_name and theme_name != "<No themes available>")
         has_bookmark = isinstance(bookmark, dict)
         self.dockwidget.addPairButton.setEnabled(has_theme and has_bookmark)
+
+    def _canvas_ratio(self, map_canvas):
+        size = map_canvas.size() if map_canvas is not None else None
+        if size is None or size.height() == 0:
+            return None
+        return float(size.width()) / float(size.height())
+
+    def _fit_extent_to_ratio(self, extent, target_ratio):
+        if target_ratio is None or target_ratio <= 0:
+            return extent
+
+        width = extent.width()
+        height = extent.height()
+        if width <= 0 or height <= 0:
+            return extent
+
+        extent_ratio = float(width) / float(height)
+        center = extent.center()
+
+        if extent_ratio > target_ratio:
+            new_width = width
+            new_height = width / target_ratio
+        else:
+            new_height = height
+            new_width = height * target_ratio
+
+        return QgsRectangle(
+            center.x() - (new_width / 2.0),
+            center.y() - (new_height / 2.0),
+            center.x() + (new_width / 2.0),
+            center.y() + (new_height / 2.0),
+        )
+
+    def _preserve_extent_reference(self, source_extent, adjusted_extent):
+        if isinstance(source_extent, QgsReferencedRectangle) and hasattr(source_extent, "crs"):
+            try:
+                return QgsReferencedRectangle(adjusted_extent, source_extent.crs())
+            except Exception:
+                return adjusted_extent
+        return adjusted_extent
 
     def _message(self, text, level=Qgis.Info):
         self.iface.messageBar().pushMessage("Bookmark Theme", text, level=level, duration=3)

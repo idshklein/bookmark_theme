@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented in this file.
 
+## [Unreleased]
+
+### Added
+- Generate QGIS Print Layouts from saved pairs
+- Layout grouping support on pairs (`layout_group`) for batch layout generation
+- Per-pair aspect-ratio option (`preserve_aspect_ratio`) for bookmark extent fitting
+- Optional map labels in generated layouts based on pair names
+
+### Changed
+- Saved pairs now display layout group details in the dropdown when present
+- Pair persistence schema extended with backward-compatible optional fields
+
 ## [0.2.0] - 2026-03-08
 
 ### Added

@@ -34,6 +34,13 @@
         </property>
        </widget>
       </item>
+            <item>
+             <widget class="QPushButton" name="generateLayoutButton">
+                <property name="text">
+                      <string>Add Selected To Layout</string>
+                </property>
+             </widget>
+            </item>
       <item>
        <widget class="QPushButton" name="removePairButton">
         <property name="text">
@@ -86,6 +93,27 @@
     </item>
     <item>
      <widget class="QComboBox" name="bookmarkComboBox"/>
+    </item>
+    <item>
+     <widget class="QLabel" name="layoutGroupLabel">
+      <property name="text">
+       <string>Layout Group</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QLineEdit" name="layoutGroupLineEdit">
+      <property name="placeholderText">
+       <string>Optional group name (used for layout generation)</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QCheckBox" name="preserveAspectRatioCheckBox">
+      <property name="text">
+       <string>Preserve bookmark aspect ratio</string>
+      </property>
+     </widget>
     </item>
     <item>
      <layout class="QHBoxLayout" name="addRefreshLayout">
