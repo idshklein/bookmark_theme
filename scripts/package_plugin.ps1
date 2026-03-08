@@ -26,7 +26,8 @@ if (Test-Path $ZipPath) {
     Remove-Item $ZipPath -Force
 }
 
-$TempRoot = Join-Path $env:TEMP ("{0}_{1}" -f $PluginName, [guid]::NewGuid().ToString("N"))
+$TempBase = [System.IO.Path]::GetTempPath()
+$TempRoot = Join-Path $TempBase ("{0}_{1}" -f $PluginName, [guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Path $TempRoot | Out-Null
 $Staging = Join-Path $TempRoot $PluginName
 New-Item -ItemType Directory -Path $Staging | Out-Null
