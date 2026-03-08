@@ -1,0 +1,43 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Release: Package Plugin Zip",
+            "type": "shell",
+            "command": "./scripts/package_plugin.ps1",
+            "options": {
+                "shell": {
+                    "executable": "pwsh",
+                    "args": [
+                        "-NoProfile",
+                        "-Command"
+                    ]
+                }
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Release: Upload With gh",
+            "type": "shell",
+            "command": "$version = '${input:releaseVersion}'; $tag = 'v' + $version; $zip = Join-Path 'dist' ('bookmark_theme-' + $version + '.zip'); if (-not (Test-Path $zip)) { throw \"Missing asset: $zip. Run 'Release: Package Plugin Zip' first.\" }; $lines = Get-Content CHANGELOG.md; $start = -1; $end = $lines.Count; for ($i = 0; $i -lt $lines.Count; $i++) { if ($lines[$i] -match ('^## \\[' + [regex]::Escape($version) + '\\]')) { $start = $i; continue }; if ($start -ge 0 -and $lines[$i] -match '^## \\[') { $end = $i; break } }; if ($start -lt 0) { throw \"No changelog section found for version $version\" }; $notes = New-TemporaryFile; $section = $lines[$start..($end - 1)] -join \"`n\"; Set-Content -Path $notes -Value $section -NoNewline; gh release create $tag $zip --title $tag --notes-file $notes; Remove-Item $notes -Force",
+            "options": {
+                "shell": {
+                    "executable": "pwsh",
+                    "args": [
+                        "-NoProfile",
+                        "-Command"
+                    ]
+                }
+            },
+            "problemMatcher": [],
+            "dependsOn": "Release: Package Plugin Zip"
+        }
+    ],
+    "inputs": [
+        {
+            "id": "releaseVersion",
+            "type": "promptString",
+            "description": "Release version without v prefix (example: 0.2.0)"
+        }
+    ]
+}

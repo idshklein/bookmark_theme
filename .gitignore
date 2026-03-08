@@ -4,7 +4,8 @@ __pycache__/
 *.pyd
 
 .idea/
-.vscode/
+.vscode/*
+!.vscode/tasks.json
 
 *.zip
 dist/
