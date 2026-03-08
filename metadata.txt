@@ -1,6 +1,7 @@
 [general]
 name=Bookmark Theme Selector
 qgisMinimumVersion=3.28
+qgisMaximumVersion=4.99
 description=Select and apply saved pairs of map theme and spatial bookmark.
 version=0.1.0
 author=Local User
