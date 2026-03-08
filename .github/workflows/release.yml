@@ -1,0 +1,62 @@
+name: Release Plugin
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Package plugin
+        shell: pwsh
+        run: |
+          ./scripts/package_plugin.ps1
+
+      - name: Extract changelog section
+        id: changelog
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          if ($tag.StartsWith("v")) {
+            $version = $tag.Substring(1)
+          } else {
+            $version = $tag
+          }
+
+          $lines = Get-Content CHANGELOG.md
+          $start = -1
+          $end = $lines.Count
+
+          for ($i = 0; $i -lt $lines.Count; $i++) {
+            if ($lines[$i] -match "^## \[$([regex]::Escape($version))\]") {
+              $start = $i
+              continue
+            }
+
+            if ($start -ge 0 -and $lines[$i] -match '^## \[') {
+              $end = $i
+              break
+            }
+          }
+
+          if ($start -lt 0) {
+            throw "No changelog section found for version $version"
+          }
+
+          $section = $lines[$start..($end - 1)] -join "`n"
+          Set-Content -Path release_notes.md -Value $section -NoNewline
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.zip
+          body_path: release_notes.md

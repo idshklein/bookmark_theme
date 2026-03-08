@@ -12,7 +12,7 @@ if (-not (Test-Path $OutputPath)) {
     New-Item -ItemType Directory -Path $OutputPath | Out-Null
 }
 
-$Version = "0.1.0"
+$Version = "0.2.0"
 $Metadata = Join-Path $Root "metadata.txt"
 if (Test-Path $Metadata) {
     $versionLine = Get-Content $Metadata | Where-Object { $_ -match '^version\s*=\s*' } | Select-Object -First 1
